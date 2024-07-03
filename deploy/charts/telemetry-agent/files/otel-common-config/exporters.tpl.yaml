@@ -1,0 +1,7 @@
+
+{{- if .Values.telemetryControllerEndpoint }}
+otlp/controller:
+  endpoint: {{ tpl .Values.telemetryControllerEndpoint . }}
+  tls:
+    insecure: true
+{{- end }}

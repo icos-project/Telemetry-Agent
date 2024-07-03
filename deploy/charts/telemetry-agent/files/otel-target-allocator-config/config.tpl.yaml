@@ -1,0 +1,97 @@
+{{- if not (index .Values "otel-node-agent").enabled }}
+allocation_strategy: consistent-hashing
+{{- else }}
+allocation_strategy: per-node
+{{- end }}
+
+config:
+  scrape_configs:
+
+    #
+    # Scrape services with the telemetry.icos.eu/scrape annotation
+    #
+    - job_name: 'icos-annotated-services'
+      scrape_interval: 60s
+      scrape_timeout: 2s
+      kubernetes_sd_configs:
+        - role: endpoints
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_service_annotation_telemetry_icos_eu_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_service_annotation_telemetry_icos_eu_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+        - source_labels: [__meta_kubernetes_service_annotation_telemetry_icos_eu_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_service_annotation_telemetry_icos_eu_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+        - source_labels: [__meta_kubernetes_service_annotation_telemetry_icos_eu_interval]
+          action: replace
+          regex: '(.+)'
+          target_label: __scrape_interval__
+        - source_labels: [__meta_kubernetes_service_annotation_telemetry_icos_eu_timeout]
+          action: replace
+          regex: '(.+)'
+          target_label: __scrape_timeout__
+
+        #
+        # Add more labels based on the service object where the metrics are scraped
+        # Disabled because at the moment we do not need them
+        #
+        #   # add all service labels as metric label
+        # - action: labelmap
+        #   regex: __meta_kubernetes_service_label_(.+)
+        # - source_labels: [__meta_kubernetes_namespace]
+        #   action: replace
+        #   target_label: kubernetes_namespace
+        # - source_labels: [__meta_kubernetes_service_name]
+        #   action: replace
+        #   target_label: kubernetes_name
+
+    - job_name: 'icos-annotated-pods'
+      scrape_interval: 60s
+      scrape_timeout: 2s
+      kubernetes_sd_configs:
+        - role: pod
+      relabel_configs:
+        - source_labels: [__meta_kubernetes_pod_annotation_telemetry_icos_eu_scrape]
+          action: keep
+          regex: true
+        - source_labels: [__meta_kubernetes_pod_annotation_telemetry_icos_eu_scheme]
+          action: replace
+          target_label: __scheme__
+          regex: (https?)
+        - source_labels: [__meta_kubernetes_pod_annotation_telemetry_icos_eu_path]
+          action: replace
+          target_label: __metrics_path__
+          regex: (.+)
+        - source_labels: [__address__, __meta_kubernetes_pod_annotation_telemetry_icos_eu_port]
+          action: replace
+          target_label: __address__
+          regex: ([^:]+)(?::\d+)?;(\d+)
+          replacement: $1:$2
+        - source_labels: [__meta_kubernetes_pod_annotation_telemetry_icos_eu_interval]
+          action: replace
+          regex: '(.+)'
+          target_label: __scrape_interval__
+        - source_labels: [__meta_kubernetes_pod_annotation_telemetry_icos_eu_timeout]
+          action: replace
+          regex: '(.+)'
+          target_label: __scrape_timeout__
+
+collector_selector:
+  matchlabels:
+  {{- if not (index .Values "otel-node-agent").enabled }}
+    {{- include "resengit.call-in-virtual-context" (list "resengit.selectorLabels" . "" "otel-cluster-collector") | nindent 6 }}
+  {{- else }}
+    {{- include "resengit.call-in-virtual-context" (list "resengit.selectorLabels" . "" "otel-node-agent") | nindent 6 }}
+  {{- end }}
+prometheus_cr:
+  scrape_interval: 1m0s

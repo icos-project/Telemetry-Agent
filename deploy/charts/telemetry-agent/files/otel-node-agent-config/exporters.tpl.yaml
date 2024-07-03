@@ -1,0 +1,11 @@
+debug:
+  verbosity: normal
+
+{{- if (index .Values "otel-cluster-collector").enabled }}
+otlp/controller:
+  endpoint: {{ .Release.Name }}-telemetry-agent-otel-cluster-collector:4317
+  tls:
+    insecure: true
+{{- else }}
+  {{- tpl ( .Files.Get "files/otel-common-config/exporters.tpl.yaml" ) . }}
+{{- end }}

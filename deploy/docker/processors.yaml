@@ -1,0 +1,62 @@
+#  ICOS Telemetry Agent
+#  Copyright © 2022-2024 Engineering Ingegneria Informatica S.p.A.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+#  This work has received funding from the European Union's HORIZON research 
+#  and innovation programme under grant agreement No. 101070177.
+
+processors:
+
+  resourcedetection/docker:
+    detectors: [env, docker]
+    timeout: 2s
+    override: false
+    docker:
+      resource_attributes:
+        host.name:
+          enabled: true
+        os.type:
+          enabled: false
+
+  transform:
+    error_mode: ignore
+    metric_statements:
+      - context: datapoint
+        statements:
+          # compute the icos.host.name label only for metrics that already have the icos_host_id label (see processor attributes/icos_host_id)
+          - set(attributes["icos.host.name"], Concat([Substring(attributes["icos.host.id"],0,8), resource.attributes["host.name"]], ":")) where IsMatch(metric.name, "^node_|^tlum_")
+
+
+  attributes/icos_agent_id:
+    actions:
+    - action: insert
+      key: icos.agent.id
+      value: ${ICOS_AGENT_ID}
+
+  attributes/icos_host_id:
+    # include only metrics that we are sure are produced in the same host (i.e. expoters deployed as daemonsets)
+    include:
+      match_type: regexp
+      metric_names: ["^node_", "^tlum_"]
+    actions:
+    - action: insert
+      key: icos.host.id
+      value: ${file:/etc/machine-id}
+
+  batch: {}
+
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 80
+    spike_limit_percentage: 25

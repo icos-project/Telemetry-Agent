@@ -1,0 +1,11 @@
+
+{{- if .Values.scrapePrometheusTargets }}
+prometheus:
+  config:
+    scrape_configs: []
+  target_allocator:
+    collector_id: ${env:POD_NAME}
+    {{- /* TODO: create a template that returns the url for a service. E.g., include "service.url" (component name, port) */}}
+    endpoint: http://{{ include "resengit.call-in-virtual-context" (list "resengit.component.fullname" . "" "otel-target-allocator") }}
+    interval: {{ .Values.prometheusTargetsDiscoveryInterval }}
+{{- end }}

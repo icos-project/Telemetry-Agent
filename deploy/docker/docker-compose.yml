@@ -1,0 +1,109 @@
+#  ICOS Telemetry Agent
+#  Copyright © 2022-2024 Engineering Ingegneria Informatica S.p.A.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+#  This work has received funding from the European Union's HORIZON research 
+#  and innovation programme under grant agreement No. 101070177.
+
+version: '3.9'
+
+services:
+  otelcol:
+    image: harbor.res.eng.it/icos/meta-kernel/observability/otel-collector-icos-distribution:1.2.0-v0.92.0-1
+    restart: unless-stopped
+    command:
+      - --config=/etc/otelcol/processors.yaml
+      - --config=/etc/otelcol/receivers.metrics.yaml
+      - --config=/etc/otelcol/receivers.logs.yaml
+      - --config=/etc/otelcol/pipeline.yaml
+    configs:
+      - source: processors-yaml
+        target: /etc/otelcol/processors.yaml
+      - source: receivers-metrics-yaml
+        target: /etc/otelcol/receivers.metrics.yaml
+      - source: receivers-logs-yaml
+        target: /etc/otelcol/receivers.logs.yaml
+      - source: pipeline-yaml
+        target: /etc/otelcol/pipeline.yaml
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - /etc/machine-id:/etc/machine-id
+      - /var/log:/host/var/log
+      - /var/lib/docker:/host/var/lib/docker
+    user: root
+    labels:
+      icos.eu/component: telemetry-agent-otel-collector
+    environment:
+      - ICOS_AGENT_ID
+      - ICOS_TELEMETRY_CONTROLLER_ENDPOINT
+      - ICOS_TELEMETRY_AGENT_CONFIG
+    networks:
+      - icos-telemetry-net
+
+  telemetruum_agent:
+    image: harbor.res.eng.it/icos/meta-kernel/observability/telemetruum-agent:0.1.0
+    command:
+      - '--path-rootfs=/host'
+      - '--ip-hint=$ICOS_TELEMETRY_CONTROLLER_ENDPOINT'
+    restart: unless-stopped
+    volumes:
+      - '/etc:/host/etc:ro,rslave'
+      - /var/run/docker.sock:/var/run/docker.sock
+      - '/var/lib/docker/volumes/nuvlaedge_nuvlabox-db/_data/:/host/nuvla_peripherals:ro,rslave'
+    labels:
+      telemetry.icos.eu/scrape: "true"
+      telemetry.icos.eu/port: "2545"
+      telemetry.icos.eu/path: /metrics
+      telemetry.icos.eu/interval: 60s
+    networks:
+      - host-network
+
+  node_exporter:
+    image: quay.io/prometheus/node-exporter:latest
+    command:
+      - '--web.listen-address=:29100'
+      - '--path.rootfs=/host'
+      - '--collector.disable-defaults'
+      - '--collector.cpu'
+      - '--collector.filesystem'
+      - '--collector.loadavg'
+      - '--collector.meminfo'
+    restart: unless-stopped
+    volumes:
+      - '/:/host:ro,rslave'
+    labels:
+      telemetry.icos.eu/scrape: "true"
+      telemetry.icos.eu/port: "29100"
+      telemetry.icos.eu/path: /metrics
+      telemetry.icos.eu/interval: 60s
+      telemetry.icos.eu/timeout: 60s
+    networks:
+      - host-network
+
+networks:
+  icos-telemetry-net:
+    name: icos-telemetry-net
+  host-network:
+    external:
+      name: "host"
+
+configs:
+  processors-yaml:
+    file: ./processors.yaml
+  receivers-metrics-yaml:
+    file: ./receivers.metrics.yaml
+  receivers-logs-yaml:
+    file: ./receivers.logs.yaml
+  pipeline-yaml:
+    file: ./pipeline-${ICOS_TELEMETRY_AGENT_CONFIG:-full}.yaml

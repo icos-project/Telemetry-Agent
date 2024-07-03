@@ -1,0 +1,2 @@
+deploy/charts/telemetry-agent/charts
+deploy/docker/telemetry-agent.env

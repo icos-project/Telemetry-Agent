@@ -1,0 +1,17 @@
+include:
+  - project: resengit/gitlab/pipeline-helpers
+    ref: main
+    file: /pipelines/helm-chart.yaml
+
+variables:
+  PH_HELM_CHART_FOLDER: deploy/charts/telemetry-agent
+
+
+documentation_website_builder:
+  trigger:
+    project: 'icos/documentation'
+    branch: 'develop'
+  rules:
+    - if: $CI_COMMIT_BRANCH == "main"
+      changes:
+        - docs/**/*

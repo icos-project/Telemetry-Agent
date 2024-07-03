@@ -1,0 +1,66 @@
+extensions:
+  health_check: {}
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: ${env:MY_POD_IP}:4317
+
+{{- if not (index .Values "otel-node-agent").enabled }}
+  {{- tpl ( .Files.Get "files/otel-common-config/receivers.tpl.yaml" ) . | nindent 4 }}
+{{- end }}
+
+processors:
+  batch: {}
+  memory_limiter:
+    check_interval: 5s
+    limit_percentage: 80
+    spike_limit_percentage: 25
+  {{- tpl ( .Files.Get "files/otel-common-config/processors.tpl.yaml" ) . | nindent 4 }}
+
+exporters:
+  debug:
+    verbosity: normal
+  {{- tpl ( .Files.Get "files/otel-common-config/exporters.tpl.yaml" ) . | nindent 4 }}
+
+service:
+  extensions:
+    - health_check
+  pipelines:
+    metrics:
+      receivers:
+        - otlp
+        {{- if not (index .Values "otel-node-agent").enabled }}
+        {{- if .Values.scrapePrometheusTargets }}
+        - prometheus
+        {{- end }}
+        {{- end }}
+      processors:
+        - memory_limiter
+        - batch
+        {{- if .Values.agentId }}
+        - attributes/icos_agent_id
+        {{- end }}
+      exporters:
+        - debug
+        {{- if .Values.telemetryControllerEndpoint }}
+        - otlp/controller
+        {{- end }}
+    {{- if .Values.logs.enabled }}
+    logs:
+      receivers:
+        - otlp
+      processors:
+        - memory_limiter
+        - batch
+        {{- if .Values.agentId }}
+        - attributes/icos_agent_id
+        {{- end }}
+      exporters:
+        - debug
+        {{- if .Values.telemetryControllerEndpoint }}
+        - otlp/controller
+        {{- end }}
+    {{- end }}
+

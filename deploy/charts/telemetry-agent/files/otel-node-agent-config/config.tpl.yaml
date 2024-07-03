@@ -1,0 +1,71 @@
+extensions:
+  health_check: {}
+
+receivers:
+  {{- tpl ( .Files.Get "files/otel-node-agent-config/receivers.tpl.yaml" ) . | nindent 4 }}
+
+processors:
+  {{- tpl ( .Files.Get "files/otel-node-agent-config/processors.tpl.yaml" ) . | nindent 4 }}
+
+exporters:
+  {{- tpl ( .Files.Get "files/otel-node-agent-config/exporters.tpl.yaml" ) . | nindent 4 }}
+
+service:
+  extensions:
+    - health_check
+  pipelines:
+    metrics:
+      receivers:
+        {{- if .Values.scrapePrometheusTargets }}
+        - prometheus
+        {{- end }}
+        {{- if .Values.enableKubeletstatsReceiver }}
+        - kubeletstats
+        {{- end }}
+      processors:
+        - memory_limiter
+        - k8sattributes/icos
+        - batch
+        - attributes/icos_host_id
+        - transform
+        {{- if not (index .Values "otel-cluster-collector").enabled }}
+        {{- if .Values.agentId }}
+        - attributes/icos_agent_id
+        {{- end }}
+        {{- end }}
+      exporters:
+        - debug
+        {{- if .Values.telemetryControllerEndpoint }}
+        - otlp/controller
+        {{- end }}
+    {{- if .Values.logs.enabled }}
+    logs:
+      receivers:
+        {{- if .Values.logs.files.enabled }}
+        - filelog/files
+        {{- end }}
+        {{- if .Values.logs.journald.enabled }}
+        - journald
+        {{- end }}
+        {{- if .Values.logs.pods.enabled }}
+        - filelog/pods
+        {{- end }}
+      processors:
+        - memory_limiter
+        {{- if .Values.logs.pods.enabled }}
+        - filter/logs
+        {{- end }}
+        - k8sattributes/icos
+        - batch
+        {{- if not (index .Values "otel-cluster-collector").enabled }}
+        {{- if .Values.agentId }}
+        - attributes/icos_agent_id
+        {{- end }}
+        {{- end }}
+      exporters:
+        - debug
+        {{- if .Values.telemetryControllerEndpoint }}
+        - otlp/controller
+        {{- end }}
+    {{- end }}
+

@@ -1,0 +1,79 @@
+#  ICOS Telemetry Agent
+#  Copyright © 2022-2024 Engineering Ingegneria Informatica S.p.A.
+#
+#  Licensed under the Apache License, Version 2.0 (the "License");
+#  you may not use this file except in compliance with the License.
+#  You may obtain a copy of the License at
+#
+#  http://www.apache.org/licenses/LICENSE-2.0
+#
+#  Unless required by applicable law or agreed to in writing, software
+#  distributed under the License is distributed on an "AS IS" BASIS,
+#  WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+#  See the License for the specific language governing permissions and
+#  limitations under the License.
+#
+#  This work has received funding from the European Union's HORIZON research 
+#  and innovation programme under grant agreement No. 101070177.
+
+receivers:
+
+  docker_stats:
+    collection_interval: 60s
+    timeout: 60s
+    # list of container labels to copy to the metrics
+    container_labels_to_metric_labels:
+      telemetry.icos.eu/scrape: telemetry_icos_eu_scrape
+      app.icos.eu/name: icos_app_name
+      app.icos.eu/component: icos_app_component
+      app.icos.eu/instance: icos_app_instance
+      app.icos.eu/owner: icos_app_owner
+
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: 'docker'
+          scrape_interval: 60s
+          scrape_timeout: 2s
+          docker_sd_configs:
+            - host: unix:///var/run/docker.sock
+              refresh_interval: 20s
+          relabel_configs:
+
+          - source_labels: [__meta_docker_container_label_telemetry_icos_eu_scrape]
+            regex: true
+            action: keep
+          - source_labels: [__meta_docker_network_ingress]
+            regex: false
+            action: keep
+
+          # for any container running with network_mode: host, replace the ip with the
+          # gateway ip
+          - source_labels: [__meta_docker_container_network_mode]
+            action: replace
+            target_label: __address__
+            regex: host
+            replacement: 172.17.0.1:80
+
+          - source_labels: [__address__, __meta_docker_container_label_telemetry_icos_eu_port]
+            action: replace
+            target_label: __address__
+            regex: (.+):(?:\d+);(\d+)
+            replacement: $$1:$$2
+          - source_labels: [__meta_docker_container_label_telemetry_icos_eu_interval]
+            action: replace
+            regex: '(.+)'
+            target_label: __scrape_interval__
+          - source_labels: [__meta_docker_container_label_telemetry_icos_eu_scheme]
+            action: replace
+            target_label: __scheme__
+            regex: (https?)
+          - source_labels: [__meta_docker_container_label_telemetry_icos_eu_path]
+            action: replace
+            target_label: __metrics_path__
+            regex: (.+)
+          - source_labels: [__meta_docker_container_label_telemetry_icos_eu_timeout]
+            action: replace
+            regex: '(.+)'
+            target_label: __scrape_timeout__
+

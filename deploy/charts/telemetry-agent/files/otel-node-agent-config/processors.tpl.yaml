@@ -1,0 +1,77 @@
+batch: {}
+memory_limiter:
+  check_interval: 5s
+  limit_percentage: 80
+  spike_limit_percentage: 25
+
+
+{{- if .Values.logs.pods.enabled }}
+filter/logs:
+  logs:
+    include:
+      match_type: regexp
+      resource_attributes:
+        - key: icos.logs.scrape
+          value: "true"
+{{- end }}
+
+k8sattributes/icos:
+  auth_type: 'serviceAccount'
+  # only watch resources on this node (works because we are in a dameonset deployment)
+  filter:
+    node_from_env_var: K8S_NODE_NAME 
+  extract:
+    metadata:
+      - k8s.node.name
+      - k8s.cluster.uid
+    annotations:
+      - tag_name: icos.$$1.$$2
+        key_regex: (.*).icos.eu/(.*)
+        from: pod
+      - tag_name: icos.$$1.$$2
+        key_regex: (.*).icos.eu/(.*)
+        from: node
+    labels:
+      - tag_name: icos.$$1.$$2
+        key_regex: (.*).icos.eu/(.*)
+        from: pod
+      - tag_name: icos.$$1.$$2
+        key_regex: (.*).icos.eu/(.*)
+        from: node
+  pod_association:
+    - sources:
+        - from: resource_attribute
+          name: k8s.pod.ip
+    - sources:
+        - from: resource_attribute
+          name: k8s.pod.uid
+    - sources:
+        - from: connection
+
+attributes/icos_host_id:
+  # include only metrics that we are sure are produced in the same host (i.e. expoters deployed as daemonsets)
+  include:
+    match_type: regexp
+    metric_names: ["^node_", "^tlum_"]
+  actions:
+  - action: insert
+    key: icos.host.id
+    value: ${file:/etc/machine-id}
+
+transform:
+  error_mode: ignore
+  metric_statements:
+    - context: datapoint
+      statements:
+        # calculate icos_host_name
+        # This will work only for metrics collected on the same node (e.g., node-exporter deployed as daemonset)
+        # because otel will set k8s_node_name as the name of the node where the pod of the exporter is running
+        - set(attributes["icos.host.name"], Concat([Substring(resource.attributes["k8s.cluster.uid"],0,8), resource.attributes["k8s.node.name"]], ":")) where IsMatch(metric.name, "^node_|^tlum_")
+        #- set(attributes["icos.container.name"], resource.attributes["k8s.container.name"])
+        
+        # kube-state-metrics
+        - set(attributes["icos.host.name"], Concat([Substring(resource.attributes["k8s.cluster.uid"],0,8), attributes["node"]], ":")) where IsMatch(metric.name, "^kube_")
+
+{{- if not (index .Values "otel-cluster-collector").enabled }}
+  {{- tpl ( .Files.Get "files/otel-common-config/processors.tpl.yaml" ) . }}
+{{- end }}

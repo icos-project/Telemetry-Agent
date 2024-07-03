@@ -1,0 +1,18 @@
+dependencies:
+- name: resengit-common
+  repository: oci://harbor.res.eng.it/resengit/helm
+  version: 0.9.1
+- name: kube-state-metrics
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 5.14.0
+- name: prometheus-node-exporter
+  repository: https://prometheus-community.github.io/helm-charts
+  version: 4.23.2
+- name: scaphandre
+  repository: oci://harbor.res.eng.it/icos/helm
+  version: 1.0.3
+- name: icos-nfd
+  repository: oci://harbor.res.eng.it/icos/helm
+  version: 0.3.0
+digest: sha256:a67b54311d319f85c1e71d543d03dd54376c61e9ab222ea1735535d647b20301
+generated: "2024-03-21T15:48:55.816594394+01:00"

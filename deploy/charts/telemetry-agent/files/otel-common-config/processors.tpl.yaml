@@ -1,0 +1,10 @@
+{{- if .Values.agentId }}
+attributes/icos_agent_id:
+  # insert only if it does not exists
+  # use "icos_agent_id" and not "icos.agent.id" because metrics received from prometheus will already
+  # have icos_agent_id and it will not be recognized as icos.agent.id
+  actions:
+  - action: insert
+    key: icos_agent_id
+    value: {{ .Values.agentId }}
+{{- end }}
